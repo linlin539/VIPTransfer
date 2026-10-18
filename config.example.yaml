@@ -1,0 +1,16 @@
+# VMware VIP Transfer 配置
+# 使用方法: 复制本文件为 config.yaml 后修改
+
+# VIX DLL 路径 (留空自动从 dll/ 目录或 exe 同目录找)
+# vix_dll: ""
+
+# 目标虚拟机列表
+vms:
+  - name: "Master"
+    vmx_path: "G:/Virtual Machines/master1/master.vmx"
+    guest_user: "hp"              # 登录 Ubuntu 的用户名
+    guest_password: ""            # 空则运行时弹窗输入
+    default_guest_dir: "/home/hp"
+
+# 可选: DHCP leases 路径 (fallback, VIX 不可用时用)
+# leases_path: "C:/ProgramData/VMware/vmnetdhcp.leases"

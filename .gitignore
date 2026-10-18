@@ -1,0 +1,49 @@
+# =========================
+# VIPTransfer - Gitignore
+# =========================
+
+# --- 构建产物 ---
+build/
+dist/
+*.spec
+
+# --- Release 打包产物（GitHub Release 页面单独上传 zip） ---
+release/
+
+# --- Python 缓存 ---
+__pycache__/
+*.pyc
+*.pyo
+*.egg-info/
+
+# --- 密码 / 个人配置 ---
+# ★ config.yaml 含 guest 密码 + 个人 VM 路径！绝不入仓！
+config.yaml
+
+# --- 本机 VMware 虚拟机文件（路径都是你电脑的） ---
+*.vmx
+*.vmdk
+*.vmsd
+*.vmxf
+*.nvram
+*.vmprey
+vmware-*.log
+
+# --- 系统文件 ---
+.DS_Store
+Thumbs.db
+desktop.ini
+
+# --- IDE ---
+.idea/
+.vscode/
+*.swp
+*.swo
+
+# --- 临时文件 / 调试脚本 ---
+tmp/
+temp/
+*.tmp
+test_*.py
+gen_*.py
+debug_*.py
