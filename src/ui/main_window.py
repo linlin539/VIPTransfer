@@ -10,7 +10,7 @@ from PyQt6.QtCore import Qt, pyqtSignal
 from PyQt6.QtWidgets import (
     QMainWindow, QWidget, QVBoxLayout, QHBoxLayout, QComboBox, QLabel,
     QPushButton, QProgressBar, QMessageBox, QSplitter, QFileDialog,
-    QStatusBar, QTextEdit, QFrame,
+    QStatusBar, QTextEdit, QFrame, QDialog,
 )
 
 from src.app_config import AppConfig, VMConfig
@@ -344,7 +344,7 @@ class MainWindow(QMainWindow):
     # ======================================================================
 
     def _batch_deploy(self):
-        """把左侧选中的文件/目录同时下发到所有已配置 VM"""
+        """把左侧选中的文件同时下发到所有已配置 VM"""
         if not self._app_config or not self._app_config.vms:
             QMessageBox.warning(self, "提示", "config.yaml 里没有 VM 配置")
             return
@@ -352,11 +352,9 @@ class MainWindow(QMainWindow):
         # 从左侧拿选中的文件
         selected = self.local_view._get_selected_paths()
         if not selected:
-            # 从右侧 guest 面板拿选中的（用户可能想把 guest 上的东西下发到其他 VM）
             QMessageBox.information(
                 self, "提示",
-                "请先在左侧本地文件列表里选中要下发的文件或目录。\n\n"
-                "目录暂不支持直接下发（请先打包成 tar.gz）。"
+                "请先在左侧本地文件列表里选中要下发的文件。"
             )
             return
 
@@ -377,23 +375,45 @@ class MainWindow(QMainWindow):
             QMessageBox.warning(self, "提示", "没有可下发的文件")
             return
 
-        if len(files) > 5:
-            ret = QMessageBox.question(
-                self, "确认",
-                f"要把 {len(files)} 个文件下发到 {len(self._app_config.vms)} 台 VM 吗?",
-                QMessageBox.StandardButton.Yes | QMessageBox.StandardButton.No,
-            )
-            if ret != QMessageBox.StandardButton.Yes:
-                return
+        # 弹对话框让用户确认每台 VM 的目标目录
+        from src.ui.batch_deploy_dialog import BatchDeployDialog
+        from src.ui.guest_browser import GuestBrowserDialog
+        dlg = BatchDeployDialog(self._app_config.vms, files, parent=self)
 
-        # 目标 guest 目录 —— 默认每台 VM 的 default_guest_dir 或 home
-        # 目前简单用 /home/<user>，每台 VM 自己的 user
+        def open_browser_for_vm(vm_cfg, path_label):
+            client = VmrunClient(
+                vmx_path=vm_cfg.vmx_path,
+                guest_user=vm_cfg.guest_user,
+                guest_password=vm_cfg.guest_password,
+            )
+            browser = GuestBrowserDialog(
+                client,
+                start_path=path_label.text().strip() or "/",
+                vm_name=vm_cfg.name,
+                parent=dlg,
+            )
+            if browser.exec() == QDialog.DialogCode.Accepted:
+                selected = browser.get_selected_path()
+                if selected:
+                    path_label.setText(selected)
+
+        dlg.set_browser_runner(open_browser_for_vm)
+
+        if dlg.exec() != QDialog.DialogCode.Accepted:
+            return
+
+        # 用户确认后的目标目录
+        target_dirs = dlg.get_target_dirs()
+
+        # 日志开头
         self._log(f"\n{'='*50}")
         self._log(f"🚀 开始批量下发 {len(files)} 个文件 → {len(self._app_config.vms)} 台 VM")
+        for vm_name, dir_path in target_dirs.items():
+            self._log(f"  📁 [{vm_name}] 目标目录: {dir_path}")
 
         from concurrent.futures import ThreadPoolExecutor, as_completed
 
-        def deploy_one(vm_cfg: VMConfig, host_path: str) -> tuple[str, str, bool]:
+        def deploy_one(vm_cfg: VMConfig, host_path: str) -> tuple:
             """单个文件下发到单个 VM"""
             try:
                 client = VmrunClient(
@@ -405,8 +425,8 @@ class MainWindow(QMainWindow):
                 if state != "running":
                     return (vm_cfg.name, host_path, False, f"Tools 状态: {state}")
 
-                # 目标目录
-                target_dir = vm_cfg.default_guest_dir or f"/home/{vm_cfg.guest_user}"
+                # 使用用户确认后的目标目录（不是 default_guest_dir）
+                target_dir = target_dirs.get(vm_cfg.name) or f"/home/{vm_cfg.guest_user}"
                 target = target_dir.rstrip("/") + "/" + os.path.basename(host_path)
                 client.copy_to_guest(host_path, target)
                 return (vm_cfg.name, target, True, "OK")
