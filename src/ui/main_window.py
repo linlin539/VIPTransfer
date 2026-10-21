@@ -164,6 +164,8 @@ class MainWindow(QMainWindow):
             self._current_vm = data
             self.status_label.setText(f"选中: {data.name}")
             self.status_label.setStyleSheet("color: #0d6efd;")
+            # 切换 VM 时重置连接状态
+            self._reset_connection()
         else:
             self._current_vm = None
 
@@ -227,6 +229,25 @@ class MainWindow(QMainWindow):
         self.statusBar().showMessage("连接失败")
         self._log(f"❌ 连接失败: {err}")
         QMessageBox.critical(self, "连接失败", err)
+
+    def _reset_connection(self):
+        """重置连接状态 —— 切换 VM 下拉时调用"""
+        self.connect_btn.setEnabled(True)
+        self.connect_btn.setText("🔌 连接")
+        self.connect_btn.setStyleSheet(
+            "QPushButton { background-color: #0d6efd; color: white; padding: 8px 20px; border-radius: 4px; font-weight: bold; }"
+            "QPushButton:hover { background-color: #0b5ed7; }"
+            "QPushButton:disabled { background-color: #6c757d; }"
+        )
+        self.status_label.setText("未连接")
+        self.status_label.setStyleSheet("color: #888;")
+        self._vmrun = None
+        self.guest_view.set_client(None)
+        self.guest_view.set_connected(False)
+        self.guest_view._current_path = "/"
+        self.guest_view.reload()
+        self.progress_bar.setVisible(False)
+        self.statusBar().showMessage("")
 
     # ======================================================================
     # 上传 / 下载
